@@ -23,6 +23,13 @@ interface ChatMessage {
 	};
 }
 
+interface Theme {
+	id: string;
+	name: string;
+	description: string;
+	icon: string;
+}
+
 interface AppState {
 	players: Player[];
 	playerCount: number;
@@ -33,7 +40,11 @@ interface AppState {
 	thinkingForPlayers: string[]; // Player IDs with pending queries
 	lastWinner: Player | null;
 	hasSecretWord: boolean;
-	corpusReady: boolean;
+	// Theme system
+	currentTheme: string | null;
+	themeSelectionActive: boolean;
+	themeVotes: Record<string, string>; // playerId -> themeId
+	themes: Theme[];
 }
 
 const playerEmojis = ["🐰", "🐱", "🐶", "🐼", "🐨", "🦦", "🐧", "🐹"];
@@ -49,13 +60,19 @@ function GameBoard() {
 		thinkingForPlayers: [],
 		lastWinner: null,
 		hasSecretWord: false,
-		corpusReady: false,
+		// Theme system
+		currentTheme: null,
+		themeSelectionActive: true,
+		themeVotes: {},
+		themes: [],
 	});
+
+	const [selectedTheme, setSelectedTheme] = useState<string | null>(null);
 
 	const [ws, setWs] = useState<WebSocket | null>(null);
 	const [inputValue, setInputValue] = useState("");
 	const [error, setError] = useState<string | null>(null);
-	const [skippedWord, setSkippedWord] = useState<{ word: string; category: string } | null>(null);
+	const [skippedWord, setSkippedWord] = useState<{ word: string; theme: string } | null>(null);
 	const chatContainerRef = useRef<HTMLDivElement>(null);
 
 	// Connect to WebSocket
@@ -83,7 +100,10 @@ function GameBoard() {
 						thinkingForPlayers: data.thinkingForPlayers || [],
 						lastWinner: data.lastWinner,
 						hasSecretWord: data.hasSecretWord,
-						corpusReady: data.corpusReady,
+						currentTheme: data.currentTheme,
+						themeSelectionActive: data.themeSelectionActive,
+						themeVotes: data.themeVotes || {},
+						themes: data.themes || [],
 					}));
 				} else if (data.type === "state") {
 					setAppState((prev) => ({
@@ -95,7 +115,18 @@ function GameBoard() {
 						thinkingForPlayers: data.thinkingForPlayers || [],
 						lastWinner: data.lastWinner,
 						hasSecretWord: data.hasSecretWord,
-						corpusReady: data.corpusReady,
+						currentTheme: data.currentTheme,
+						themeSelectionActive: data.themeSelectionActive,
+						themeVotes: data.themeVotes || {},
+						themes: data.themes || [],
+					}));
+				} else if (data.type === "theme_update") {
+					setAppState((prev) => ({
+						...prev,
+						currentTheme: data.currentTheme,
+						themeSelectionActive: data.themeSelectionActive,
+						themeVotes: data.themeVotes || {},
+						themes: data.themes || prev.themes,
 					}));
 				} else if (data.type === "chat_message") {
 					setAppState((prev) => {
@@ -121,7 +152,7 @@ function GameBoard() {
 						hasSecretWord: true,
 					}));
 				} else if (data.type === "round_skipped") {
-					setSkippedWord({ word: data.word, category: data.category });
+					setSkippedWord({ word: data.word, theme: data.theme });
 				} else if (data.type === "error") {
 					setError(data.message);
 					setTimeout(() => setError(null), 5000);
@@ -195,10 +226,86 @@ function GameBoard() {
 		}
 	}, [ws]);
 
+	const handleVoteTheme = useCallback((themeId: string) => {
+		setSelectedTheme(themeId);
+		if (ws) {
+			ws.send(JSON.stringify({ type: "vote_theme", themeId }));
+		}
+	}, [ws]);
+
+	const handleConfirmTheme = useCallback(() => {
+		if (ws && selectedTheme) {
+			ws.send(JSON.stringify({ type: "confirm_theme", themeId: selectedTheme }));
+		}
+	}, [ws, selectedTheme]);
+
+	const handleChangeTheme = useCallback(() => {
+		if (ws) {
+			ws.send(JSON.stringify({ type: "change_theme" }));
+			setSelectedTheme(null);
+		}
+	}, [ws]);
+
 	const currentPlayer = appState.players.find(p => p.id === appState.currentPlayerId);
 
 	// Sort players by score for leaderboard
 	const sortedPlayers = [...appState.players].sort((a, b) => b.score - a.score);
+
+	// Get current theme info
+	const currentThemeInfo = appState.themes.find(t => t.id === appState.currentTheme);
+
+	// Count votes for each theme
+	const voteCounts: Record<string, number> = {};
+	Object.values(appState.themeVotes).forEach(themeId => {
+		voteCounts[themeId] = (voteCounts[themeId] || 0) + 1;
+	});
+
+	// Theme selection screen
+	if (appState.themeSelectionActive) {
+		return (
+			<div className="game-container theme-selection-container">
+				<h1 className="game-title">Word Oracle</h1>
+
+				<div className={`connection-status ${appState.connected ? "connected" : "disconnected"}`}>
+					{appState.connected ? "~ Connected ~" : "Connecting..."}
+				</div>
+
+				<div className="theme-selection">
+					<h2 className="theme-selection-title">Choose a Theme</h2>
+					<p className="theme-selection-subtitle">Select a category for the words you'll be guessing</p>
+
+					<div className="theme-grid">
+						{appState.themes.map((theme) => (
+							<button
+								key={theme.id}
+								className={`theme-card ${selectedTheme === theme.id ? "selected" : ""}`}
+								onClick={() => handleVoteTheme(theme.id)}
+							>
+								<span className="theme-icon">{theme.icon}</span>
+								<span className="theme-name">{theme.name}</span>
+								<span className="theme-description">{theme.description}</span>
+								{voteCounts[theme.id] > 0 && (
+									<span className="theme-votes">{voteCounts[theme.id]} vote{voteCounts[theme.id] > 1 ? "s" : ""}</span>
+								)}
+							</button>
+						))}
+					</div>
+
+					<button
+						className="confirm-theme-btn"
+						onClick={handleConfirmTheme}
+						disabled={!selectedTheme}
+					>
+						Start Game {selectedTheme && `with ${appState.themes.find(t => t.id === selectedTheme)?.name}`}
+					</button>
+
+					<div className="players-waiting">
+						<p>{appState.players.length} player{appState.players.length !== 1 ? "s" : ""} in lobby</p>
+					</div>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="game-container">
@@ -218,7 +325,7 @@ function GameBoard() {
 						<h2>Round Skipped!</h2>
 						<p className="popup-label">The answer was:</p>
 						<p className="popup-word">{skippedWord.word}</p>
-						<p className="popup-category">{skippedWord.category}</p>
+						<p className="popup-category">{appState.themes.find(t => t.id === skippedWord.theme)?.name || skippedWord.theme}</p>
 						<button className="popup-btn" onClick={handleClosePopupAndNextRound}>
 							Next Round
 						</button>
@@ -258,7 +365,14 @@ function GameBoard() {
 				{/* Main game area */}
 				<div className="game-area">
 					<div className="round-indicator">
-						Round {appState.round || "..."}
+						<div className="round-info">
+							Round {appState.round || "..."}
+							{currentThemeInfo && (
+								<span className="current-theme-badge">
+									{currentThemeInfo.icon} {currentThemeInfo.name}
+								</span>
+							)}
+						</div>
 						{appState.lastWinner && (
 							<span className="last-winner">Last winner: {appState.lastWinner.name}</span>
 						)}
@@ -269,14 +383,7 @@ function GameBoard() {
 						{appState.chatHistory.length === 0 && !appState.hasSecretWord && (
 							<div className="chat-empty">
 								<div className="oracle-icon">🔮</div>
-								{!appState.corpusReady ? (
-									<>
-										<p>The Oracle is gathering knowledge...</p>
-										<p className="corpus-hint">This only happens once per session</p>
-									</>
-								) : (
-									<p>Waiting for the Oracle to think of something...</p>
-								)}
+								<p>Waiting for the Oracle to think of something...</p>
 							</div>
 						)}
 
@@ -370,9 +477,14 @@ function GameBoard() {
 				</div>
 			</div>
 
-			<button className="new-round-btn" onClick={handleSkipRound} disabled={isAnyoneThinking}>
-				Skip Round
-			</button>
+			<div className="game-actions">
+				<button className="new-round-btn" onClick={handleSkipRound} disabled={isAnyoneThinking}>
+					Skip Round
+				</button>
+				<button className="change-theme-btn" onClick={handleChangeTheme} disabled={isAnyoneThinking}>
+					Change Theme
+				</button>
+			</div>
 		</div>
 	);
 }

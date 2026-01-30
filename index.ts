@@ -1,58 +1,90 @@
 import index from "./index.html";
-import { Database } from "bun:sqlite";
 
-// Groq configuration
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_API_KEY = process.env.GROQ_API_KEY!;
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
-// Local model configuration (llama-server)
 const LOCAL_MODEL_URL = process.env.LOCAL_MODEL_URL || "http://localhost:8080/v1/chat/completions";
 
-// Flag to choose between local model and Groq for user queries
-// Set USE_LOCAL_MODEL=false to use Groq API for user queries
 const USE_LOCAL_MODEL = process.env.USE_LOCAL_MODEL !== "false";
 
 
-// Database setup
-const db = new Database("words.db");
-db.run(`
-	CREATE TABLE IF NOT EXISTS words (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		word TEXT NOT NULL UNIQUE,
-		category TEXT NOT NULL,
-		facts TEXT NOT NULL
-	)
-`);
+const GAME_THEMES: Record<string, { name: string; description: string; icon: string; words: string[] }> = {
+	random: {
+		name: "Random",
+		description: "A mix of everything",
+		icon: "🎲",
+		words: ["Eiffel Tower", "Pizza", "Einstein", "Bitcoin", "Titanic", "Pikachu", "Yoga", "Spotify", "Mars", "Shakespeare", "Sushi", "Cleopatra", "iPhone", "Minecraft", "Mona Lisa", "Taj Mahal", "Beyoncé", "Netflix", "Dinosaur", "Pyramids"]
+	},
+	sports: {
+		name: "Sports",
+		description: "Athletes, teams, equipment",
+		icon: "⚽",
+		words: ["Michael Jordan", "Serena Williams", "FIFA World Cup", "Olympics", "Basketball", "Tennis Racket", "Super Bowl", "Usain Bolt", "Muhammad Ali", "Cristiano Ronaldo", "Lionel Messi", "Tiger Woods", "LeBron James", "Tom Brady", "Wimbledon", "Golf", "Swimming", "Marathon", "Skateboard", "Baseball"]
+	},
+	celebrities: {
+		name: "Celebrities",
+		description: "Famous people from all fields",
+		icon: "⭐",
+		words: ["Taylor Swift", "Elon Musk", "Oprah Winfrey", "Kim Kardashian", "Dwayne Johnson", "Lady Gaga", "Brad Pitt", "Rihanna", "Will Smith", "Jennifer Lopez", "Kanye West", "Billie Eilish", "Tom Hanks", "Ariana Grande", "Drake", "Zendaya", "Bad Bunny", "Selena Gomez", "Leonardo DiCaprio", "BTS"]
+	},
+	food: {
+		name: "Food & Drinks",
+		description: "Dishes, ingredients, beverages",
+		icon: "🍕",
+		words: ["Pizza", "Sushi", "Tacos", "Chocolate", "Coffee", "Coca-Cola", "Hamburger", "Ice Cream", "Pasta", "Avocado", "Starbucks", "Croissant", "Ramen", "Cheese", "Wine", "Beer", "Pancakes", "Curry", "Lobster", "Kimchi"]
+	},
+	animals: {
+		name: "Animals",
+		description: "Creatures from around the world",
+		icon: "🦁",
+		words: ["Lion", "Elephant", "Dolphin", "Penguin", "Koala", "Giraffe", "Panda", "Tiger", "Eagle", "Shark", "Octopus", "Butterfly", "Gorilla", "Kangaroo", "Wolf", "Owl", "Flamingo", "Cheetah", "Whale", "Sloth"]
+	},
+	movies: {
+		name: "Movies & TV",
+		description: "Films, shows, characters",
+		icon: "🎬",
+		words: ["Star Wars", "Harry Potter", "The Godfather", "Titanic", "Avatar", "Spider-Man", "Batman", "Game of Thrones", "Breaking Bad", "Friends", "The Office", "Stranger Things", "Squid Game", "Shrek", "Frozen", "Jurassic Park", "The Lion King", "Marvel", "James Bond", "The Simpsons"]
+	},
+	music: {
+		name: "Music",
+		description: "Artists, songs, instruments",
+		icon: "🎵",
+		words: ["The Beatles", "Michael Jackson", "Elvis Presley", "Madonna", "Guitar", "Piano", "Spotify", "Grammy Awards", "Rolling Stones", "Queen", "Bob Marley", "Eminem", "Adele", "Ed Sheeran", "Drums", "Violin", "Hip Hop", "Jazz", "Woodstock", "Coachella"]
+	},
+	history: {
+		name: "History",
+		description: "Historical figures and events",
+		icon: "📜",
+		words: ["Cleopatra", "Napoleon", "World War II", "Abraham Lincoln", "Ancient Rome", "Egyptian Pyramids", "Julius Caesar", "French Revolution", "Martin Luther King", "Leonardo da Vinci", "Queen Victoria", "Alexander the Great", "Genghis Khan", "Renaissance", "Industrial Revolution", "Cold War", "Moon Landing", "Titanic", "Berlin Wall", "Columbus"]
+	},
+	science: {
+		name: "Science & Tech",
+		description: "Inventions, discoveries, gadgets",
+		icon: "🔬",
+		words: ["iPhone", "Tesla", "Google", "DNA", "Black Hole", "Artificial Intelligence", "Electricity", "Internet", "Robot", "Vaccine", "Atom", "SpaceX", "Microsoft", "Amazon", "Telescope", "Microscope", "Solar Panel", "5G", "Blockchain", "Quantum Computer"]
+	},
+	geography: {
+		name: "Geography",
+		description: "Places, landmarks, countries",
+		icon: "🌍",
+		words: ["Eiffel Tower", "Great Wall of China", "Mount Everest", "Amazon River", "Sahara Desert", "Grand Canyon", "Niagara Falls", "Statue of Liberty", "Big Ben", "Colosseum", "Sydney Opera House", "Machu Picchu", "Taj Mahal", "Antarctica", "Hawaii", "Tokyo", "Paris", "New York", "Dubai", "Australia"]
+	},
+	gaming: {
+		name: "Video Games",
+		description: "Games, characters, consoles",
+		icon: "🎮",
+		words: ["Minecraft", "Fortnite", "Mario", "Zelda", "PlayStation", "Xbox", "Nintendo", "Pokémon", "Grand Theft Auto", "Call of Duty", "Tetris", "Sonic", "League of Legends", "Roblox", "Among Us", "Elden Ring", "God of War", "Pac-Man", "Donkey Kong", "Steam"]
+	},
+	literature: {
+		name: "Literature",
+		description: "Books, authors, characters",
+		icon: "📚",
+		words: ["Harry Potter", "Shakespeare", "Sherlock Holmes", "Romeo and Juliet", "Lord of the Rings", "Stephen King", "Dracula", "Frankenstein", "Pride and Prejudice", "The Great Gatsby", "Moby Dick", "Alice in Wonderland", "Hamlet", "Charles Dickens", "Edgar Allan Poe", "Agatha Christie", "Game of Thrones", "The Hunger Games", "1984", "Don Quixote"]
+	},
+};
 
-// Knowledge corpus types
-interface WordEntry {
-	word: string;
-	category: "person" | "place" | "thing" | "animal" | "concept" | "brand" | "character";
-	facts: string;
-}
-
-// Database helper functions
-function getWordCountFromDb(): number {
-	const result = db.query("SELECT COUNT(*) as count FROM words").get() as { count: number };
-	return result.count;
-}
-
-function saveWordsToDb(words: WordEntry[]): void {
-	const insert = db.prepare("INSERT OR IGNORE INTO words (word, category, facts) VALUES (?, ?, ?)");
-	for (const entry of words) {
-		insert.run(entry.word, entry.category, entry.facts);
-	}
-}
-
-function deleteWordFromDb(word: string): void {
-	db.run("DELETE FROM words WHERE word = ?", [word]);
-}
-
-function getRandomWordFromDb(): WordEntry | null {
-	const result = db.query("SELECT word, category, facts FROM words ORDER BY RANDOM() LIMIT 1").get() as WordEntry | null;
-	return result;
-}
+const usedWords: Map<string, Set<string>> = new Map();
 
 async function callGroq(prompt: string, systemPrompt?: string): Promise<string> {
 	const messages: Array<{ role: string; content: string }> = [];
@@ -83,7 +115,6 @@ async function callGroq(prompt: string, systemPrompt?: string): Promise<string> 
 	return data.choices?.[0]?.message?.content?.trim() || "";
 }
 
-// Call local model (llama-server) for user queries
 async function callLocalModel(prompt: string, systemPrompt?: string): Promise<string> {
 	const messages: Array<{ role: string; content: string }> = [];
 
@@ -136,24 +167,26 @@ interface GameState {
 	players: Player[];
 	maxPlayers: number;
 	secretWord: string | null;
-	currentWordEntry: WordEntry | null;
 	round: number;
 	chatHistory: ChatMessage[];
 	thinkingForPlayers: Set<string>; // Track which players have pending queries
 	lastWinner: Player | null;
-	corpusReady: boolean;
+	currentTheme: string | null;
+	themeSelectionActive: boolean;
+	themeVotes: Map<string, string>; // playerId -> themeId
 }
 
 const gameState: GameState = {
 	players: [],
 	maxPlayers: 8,
 	secretWord: null,
-	currentWordEntry: null,
 	round: 0,
 	chatHistory: [],
 	thinkingForPlayers: new Set(),
 	lastWinner: null,
-	corpusReady: false,
+	currentTheme: null,
+	themeSelectionActive: true, // Start with theme selection
+	themeVotes: new Map(),
 };
 
 const playerColors = [
@@ -183,6 +216,16 @@ function generateMessageId(): string {
 	return Math.random().toString(36).substring(2, 12);
 }
 
+// Convert themes to array format for frontend
+function getThemesArray() {
+	return Object.entries(GAME_THEMES).map(([id, data]) => ({
+		id,
+		name: data.name,
+		description: data.description,
+		icon: data.icon,
+	}));
+}
+
 function broadcastState() {
 	const message = JSON.stringify({
 		type: "state",
@@ -193,7 +236,25 @@ function broadcastState() {
 		thinkingForPlayers: Array.from(gameState.thinkingForPlayers),
 		lastWinner: gameState.lastWinner,
 		hasSecretWord: !!gameState.secretWord,
-		corpusReady: gameState.corpusReady,
+		// Theme info
+		currentTheme: gameState.currentTheme,
+		themeSelectionActive: gameState.themeSelectionActive,
+		themeVotes: Object.fromEntries(gameState.themeVotes),
+		themes: getThemesArray(),
+	});
+
+	for (const ws of connections.values()) {
+		ws.send(message);
+	}
+}
+
+function broadcastThemeUpdate() {
+	const message = JSON.stringify({
+		type: "theme_update",
+		currentTheme: gameState.currentTheme,
+		themeSelectionActive: gameState.themeSelectionActive,
+		themeVotes: Object.fromEntries(gameState.themeVotes),
+		themes: getThemesArray(),
 	});
 
 	for (const ws of connections.values()) {
@@ -254,248 +315,115 @@ function broadcastNewRound(winner: Player | null) {
 	}
 }
 
-// Single Groq call to generate the knowledge corpus
-const CORPUS_GENERATOR_PROMPT = `Generate a comprehensive knowledge corpus for a word guessing game. Create exactly 10 diverse words with EXTENSIVE facts about each (minimum 500 words per entry).
+async function webSearch(query: string): Promise<string> {
+	try {
+		const searchUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
+		console.log(searchUrl);
+		const response = await fetch(searchUrl);
+		if (!response.ok) return "";
 
-Requirements:
-- Mix of categories: people (real/fictional), places, things, animals, concepts, brands, characters
-- Mix of difficulty: some easy (cat, pizza), some medium (telescope, democracy), some hard (Cleopatra, Kubernetes)
-- Facts must be EXTREMELY comprehensive - at least 500 words per entry
+		const data = await response.json();
+		let results: string[] = [];
 
-Respond ONLY with valid JSON in this exact format:
-{
-  "words": [
-    {
-      "word": "Eiffel Tower",
-      "category": "place",
-      "facts": "[500+ words of comprehensive facts here]"
-    }
-  ]
+		if (data.Abstract) {
+			results.push(data.Abstract);
+		}
+
+		if (data.RelatedTopics) {
+			for (const topic of data.RelatedTopics.slice(0, 5)) {
+				if (topic.Text) {
+					results.push(topic.Text);
+				}
+			}
+		}
+
+		return results.join(" ");
+	} catch (error) {
+		console.error("Web search error:", error);
+		return "";
+	}
 }
-
-Each "facts" field MUST contain at least 500 words covering ALL of these aspects in great detail:
-
-1. IDENTITY & CLASSIFICATION:
-- What category it belongs to (thing, person, place, animal, concept, brand, character)
-- What type/subcategory it is
-- Scientific classification if applicable
-- Official names, nicknames, alternative names
-
-2. PHYSICAL PROPERTIES (if applicable):
-- Size (height, width, length, weight, mass)
-- Color(s) and visual appearance
-- Material composition
-- Shape and structure
-- Texture and feel
-- Smell and taste (if relevant)
-- Sound it makes (if any)
-
-3. EXISTENCE & NATURE:
-- Is it alive or not alive?
-- Is it real or fictional?
-- Is it natural or man-made?
-- Is it edible or not edible?
-- Is it dangerous or safe?
-- Is it common or rare?
-- Is it visible to naked eye?
-- Can it move on its own?
-
-4. TEMPORAL ASPECTS:
-- When it was created/born/discovered
-- How old it is
-- Historical significance
-- Evolution over time
-- Lifespan (if alive)
-- Era it belongs to
-
-5. SPATIAL ASPECTS:
-- Where it is located/found
-- Geographic distribution
-- Where it originated
-- Countries/regions associated with it
-- Can it be found indoors or outdoors?
-- Is it portable or stationary?
-
-6. POPULARITY & CULTURE:
-- How famous/well-known it is
-- Pop culture references
-- Appearances in media (movies, books, songs)
-- Awards or recognition received
-- Cultural significance
-- Symbolism and what it represents
-
-7. FUNCTION & PURPOSE:
-- What it is used for
-- How it works
-- Who uses it
-- Benefits it provides
-- Problems it solves
-
-8. RELATIONSHIPS & ASSOCIATIONS:
-- Related items/concepts
-- Things commonly associated with it
-- Part of what larger system/category
-- What it contains or is made of
-- What depends on it
-
-9. COMPARISONS:
-- Bigger than what (list multiple items)
-- Smaller than what (list multiple items)
-- Similar to what
-- Different from what
-- More expensive or cheaper than common items
-- More common or rarer than similar things
-
-10. MISCELLANEOUS:
-- Interesting trivia
-- Common misconceptions
-- Fun facts
-- Records or achievements
-- Controversies if any
-- Future outlook
-
-Write each facts entry as a continuous, dense paragraph with hundreds of factual statements. Do not use bullet points or formatting - just plain text sentences.
-
-Generate 10 diverse entries now:`;
 
 const ORACLE_SYSTEM_PROMPT = `
-You are a friendly, conversational Oracle answering yes/no questions about a secret word.
+You are the Oracle in a guessing game. Players are trying to guess a secret word by asking questions.
 
-ABSOLUTE RULES (never break these):
-1. Respond with exactly ONE short sentence.
-2. Begin with "Yes," "No," or a very broad category (e.g. "It's a thing.", "It's a place.").
-3. NEVER say the secret word.
-4. NEVER describe, explain, define, compare, hint at, or give examples of what it is.
-5. NEVER add extra facts beyond what is directly asked.
-
-STYLE RULES:
-- Sound warm, natural, and conversational.
-- Avoid robotic phrasing.
-- No reasoning, no elaboration, no follow-ups.
-
-GOOD:
-"Yes, it’s alive!"
-"No, not edible."
-"It’s a thing!"
-"Yes, quite famous!"
-
-BAD:
-"The answer is..."
-"It’s similar to..."
-"Think about..."
-"It’s a tall metal structure"
+STRICT RULES:
+1. NEVER say the secret word or any obvious variation of it.
+2. ONLY answer questions ABOUT the secret word (e.g., "Is it alive?", "What color?", "When was it made?")
+3. REFUSE off-topic questions not about the secret word (e.g., "Who is the president?", "What's the weather?")
+4. Keep answers to one short sentence.
+5. If the answer would make the word too obvious, be more vague.
 `;
-
 
 const QUESTION_PROMPT = `
-FACTS (may be empty or incomplete):
-{FACTS}
+SECRET WORD (NEVER say this): {SECRET_WORD}
 
-QUESTION:
-{QUESTION}
+WEB SEARCH RESULTS ABOUT THE SECRET WORD:
+{SEARCH_RESULTS}
+
+PLAYER'S QUESTION: {QUESTION}
 
 INSTRUCTIONS:
-- Answer ONLY the question asked.
-- Use ONE short, friendly sentence.
-- Start with "Yes," "No," or a broad category.
-- Do NOT infer, guess, or add new information.
-- NEVER say or imply "{SECRET_WORD}".
-- NEVER describe, define, compare, or hint at what it is.
-
-ANSWER:
+- If the question is ABOUT the secret word (asking its properties, characteristics, history, etc.), answer using the search results.
+- If the question is OFF-TOPIC (not about the secret word, like general trivia), respond with "That's not about what you're trying to guess!"
+- NEVER say "{SECRET_WORD}" or anything that directly reveals it.
+- One short sentence only.
 `;
 
 
-const GUESS_DETECTOR_PROMPT = `
-A GUESS directly names or clearly identifies a specific thing.
-A QUESTION asks only about properties, traits, or categories.
-
-GUESS examples:
-"Is it a dog?" → GUESS: dog
-"Pizza?" → GUESS: pizza
-"Is it the Eiffel Tower?" → GUESS: Eiffel Tower
-"Is it Taylor Swift?" → GUESS: Taylor Swift
-
-NOT_A_GUESS examples:
-"Is it alive?" → NOT_A_GUESS
-"Is it a person?" → NOT_A_GUESS
-"Is it edible?" → NOT_A_GUESS
-"Is it famous?" → NOT_A_GUESS
-"What color is it?" → NOT_A_GUESS
-"Is it an animal?" → NOT_A_GUESS
-
-Message:
-"{MESSAGE}"
-
-Respond with EXACTLY ONE line:
-- "GUESS: <named thing>" OR
-- "NOT_A_GUESS"
-`;
-
-
-// Generate new words using Groq and save to database
-async function generateAndSaveWords(): Promise<void> {
-	console.log("Generating new words with Groq...");
-
-	const response = await fetch(GROQ_API_URL, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			"Authorization": `Bearer ${GROQ_API_KEY}`,
-		},
-		body: JSON.stringify({
-			model: GROQ_MODEL,
-			messages: [{ role: "user", content: CORPUS_GENERATOR_PROMPT }],
-			temperature: 0.7,
-		}),
-	});
-
-	if (!response.ok) {
-		throw new Error(`Groq API error: ${response.status} ${response.statusText}`);
+// Guess detection is now simple: if message starts with "Guess:" it's a guess
+function detectGuess(message: string): string | null {
+	const trimmed = message.trim();
+	// Check for "Guess:" prefix (case insensitive)
+	const match = trimmed.match(/^guess:\s*(.+)$/i);
+	if (match) {
+		return match[1].trim();
 	}
-
-	const data = await response.json();
-	const text = (data.choices?.[0]?.message?.content || "").trim();
-
-	// Parse JSON from response (handle markdown code blocks)
-	let jsonStr = text;
-	const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-	if (jsonMatch) {
-		jsonStr = jsonMatch[1];
-	}
-
-	const parsed = JSON.parse(jsonStr.trim());
-	const words: WordEntry[] = parsed.words;
-
-	// Save to database
-	saveWordsToDb(words);
-	console.log(`Generated and saved ${words.length} words to database (total: ${getWordCountFromDb()})`);
+	return null;
 }
 
-// Select a random word from the database (don't delete until correctly guessed)
-function selectWordFromDb(): WordEntry | null {
-	const wordEntry = getRandomWordFromDb();
-	return wordEntry;
+
+function selectRandomWord(theme: string): string | null {
+	const themeData = GAME_THEMES[theme];
+	if (!themeData) return null;
+
+	if (!usedWords.has(theme)) {
+		usedWords.set(theme, new Set());
+	}
+
+	const used = usedWords.get(theme)!;
+	const available = themeData.words.filter(w => !used.has(w));
+
+	if (available.length === 0) {
+		used.clear();
+		return themeData.words[Math.floor(Math.random() * themeData.words.length)];
+	}
+
+	const word = available[Math.floor(Math.random() * available.length)];
+	used.add(word);
+	return word;
 }
 
-// Answer question using local model
 async function answerQuestion(question: string): Promise<string> {
-	if (!gameState.secretWord || !gameState.currentWordEntry) {
+	if (!gameState.secretWord) {
 		return "No game in progress.";
 	}
 
+	const searchQuery = `${gameState.secretWord} ${question}`;
+	const searchResults = await webSearch(searchQuery);
+
 	const prompt = QUESTION_PROMPT
-		.replace("{SECRET_WORD}", gameState.secretWord)
-		.replace("{CATEGORY}", gameState.currentWordEntry.category)
-		.replace("{FACTS}", gameState.currentWordEntry.facts)
+		.replace(/{SECRET_WORD}/g, gameState.secretWord)
+		.replace("{SEARCH_RESULTS}", searchResults || "No search results available.")
 		.replace("{QUESTION}", question);
+
+	console.log(prompt);
 
 	return USE_LOCAL_MODEL
 		? await callLocalModel(prompt, ORACLE_SYSTEM_PROMPT)
 		: await callGroq(prompt, ORACLE_SYSTEM_PROMPT);
 }
 
-// Check guess using simple string matching (no AI needed)
 function checkGuess(guess: string): boolean {
 	if (!gameState.secretWord) return false;
 
@@ -504,126 +432,44 @@ function checkGuess(guess: string): boolean {
 	const normalizedWord = gameState.secretWord.toLowerCase().trim()
 		.replace(/^(the|a|an)\s+/i, "");
 
-	// Exact match
 	if (normalizedGuess === normalizedWord) return true;
 
-	// Handle plural/singular
 	if (normalizedGuess + "s" === normalizedWord) return true;
 	if (normalizedGuess === normalizedWord + "s") return true;
 
-	// Check if guess contains the word or vice versa (for multi-word answers)
 	if (normalizedGuess.includes(normalizedWord) || normalizedWord.includes(normalizedGuess)) {
-		// Only match if it's substantial (more than 3 chars matching)
 		if (normalizedWord.length > 3) return true;
 	}
 
 	return false;
 }
 
-// Detect guess using local model
-async function detectGuess(message: string): Promise<string | null> {
-	const prompt = GUESS_DETECTOR_PROMPT.replace("{MESSAGE}", message);
-
-	const response = USE_LOCAL_MODEL
-		? await callLocalModel(prompt)
-		: await callGroq(prompt);
-
-	if (response.toUpperCase().startsWith("GUESS:")) {
-		return response.substring(6).trim();
-	}
-	return null;
-}
-
-// Minimum words required to skip Groq generation
-const MIN_WORDS_IN_DB = 5;
-
-// Initialize the knowledge corpus (called once when first player joins)
-async function initializeCorpus(): Promise<boolean> {
-	if (gameState.corpusReady) {
-		return true;
-	}
-
-	try {
-		const wordCount = getWordCountFromDb();
-		console.log(`Database has ${wordCount} words`);
-
-		if (wordCount >= MIN_WORDS_IN_DB) {
-			console.log("Using existing words from database");
-		} else {
-			console.log("Not enough words in database, generating with Groq...");
-			await generateAndSaveWords();
-		}
-
-		gameState.corpusReady = true;
-		return true;
-	} catch (error) {
-		console.error("Failed to initialize corpus:", error);
-		return false;
-	}
-}
-
 async function startNewRound(winner: Player | null = null) {
+	if (gameState.themeSelectionActive || !gameState.currentTheme) {
+		return;
+	}
+
 	gameState.round++;
 	gameState.chatHistory = [];
 	gameState.lastWinner = winner;
 
-	// Clear any pending thinking states from previous round
 	clearAllThinkingStates();
 
-	// Ensure corpus is ready
-	if (!gameState.corpusReady) {
-		const systemMsg: ChatMessage = {
-			id: generateMessageId(),
-			playerId: "system",
-			playerName: "Game",
-			playerColor: "#8B7355",
-			type: "system",
-			content: "The Oracle is preparing... please wait.",
-			timestamp: Date.now(),
-		};
-		gameState.chatHistory.push(systemMsg);
-		broadcastState();
+	const theme = gameState.currentTheme;
 
-		const success = await initializeCorpus();
-		if (!success) {
-			const errorMsg: ChatMessage = {
-				id: generateMessageId(),
-				playerId: "system",
-				playerName: "Game",
-				playerColor: "#8B7355",
-				type: "system",
-				content: "Failed to initialize the Oracle. Please try again.",
-				timestamp: Date.now(),
-			};
-			gameState.chatHistory.push(errorMsg);
-			broadcastState();
-			return;
-		}
-	}
+	const word = selectRandomWord(theme);
 
-	// Select word from database
-	let wordEntry = selectWordFromDb();
-
-	// If no words left, generate more
-	if (!wordEntry) {
-		console.log("No words left in database, generating more...");
-		try {
-			await generateAndSaveWords();
-			wordEntry = selectWordFromDb();
-		} catch (error) {
-			console.error("Failed to generate new words:", error);
-		}
-	}
-
-	if (!wordEntry) {
-		console.error("No words available");
+	if (!word) {
+		console.error("No words available for theme:", theme);
 		return;
 	}
 
-	gameState.secretWord = wordEntry.word;
-	gameState.currentWordEntry = wordEntry;
+	gameState.secretWord = word;
+	console.log(`New round started. Secret word: ${word} (Theme: ${theme})`);
 
-	// Add system message
+	const themeData = GAME_THEMES[theme];
+	const themeName = themeData ? themeData.name : theme;
+
 	const systemMsg: ChatMessage = {
 		id: generateMessageId(),
 		playerId: "system",
@@ -631,14 +477,40 @@ async function startNewRound(winner: Player | null = null) {
 		playerColor: "#8B7355",
 		type: "system",
 		content: winner
-			? `Round ${gameState.round} begins! ${winner.name} won the last round!`
-			: `Round ${gameState.round} begins! I'm thinking of something... Ask yes/no questions to figure out what it is!`,
+			? `Round ${gameState.round} begins! ${winner.name} won the last round! Theme: ${themeName}`
+			: `Round ${gameState.round} begins! I'm thinking of something from "${themeName}"... Ask questions to figure out what it is!`,
 		timestamp: Date.now(),
 	};
 	gameState.chatHistory.push(systemMsg);
 
 	broadcastNewRound(winner);
 	broadcastMessage(systemMsg);
+}
+
+async function startGameWithTheme(theme: string) {
+	gameState.currentTheme = theme;
+	gameState.themeSelectionActive = false;
+	gameState.themeVotes.clear();
+	gameState.round = 0;
+	gameState.chatHistory = [];
+	gameState.secretWord = null;
+
+	broadcastThemeUpdate();
+
+	await startNewRound();
+}
+
+function returnToThemeSelection() {
+	gameState.themeSelectionActive = true;
+	gameState.currentTheme = null;
+	gameState.themeVotes.clear();
+	gameState.round = 0;
+	gameState.chatHistory = [];
+	gameState.secretWord = null;
+	clearAllThinkingStates();
+
+	broadcastThemeUpdate();
+	broadcastState();
 }
 
 const server = Bun.serve({
@@ -690,7 +562,11 @@ const server = Bun.serve({
 				thinkingForPlayers: Array.from(gameState.thinkingForPlayers),
 				lastWinner: gameState.lastWinner,
 				hasSecretWord: !!gameState.secretWord,
-				corpusReady: gameState.corpusReady,
+				// Theme info
+				currentTheme: gameState.currentTheme,
+				themeSelectionActive: gameState.themeSelectionActive,
+				themeVotes: Object.fromEntries(gameState.themeVotes),
+				themes: getThemesArray(),
 			}));
 
 			// Broadcast join message
@@ -706,10 +582,7 @@ const server = Bun.serve({
 			gameState.chatHistory.push(joinMsg);
 			broadcastState();
 
-			// Start first round if this is the first player
-			if (gameState.players.length === 1 && !gameState.secretWord) {
-				startNewRound();
-			}
+			// Don't auto-start - wait for theme selection
 
 			console.log(`Player joined: ${player.name} (${playerId}). Total: ${gameState.players.length}`);
 		},
@@ -750,7 +623,7 @@ const server = Bun.serve({
 					broadcastThinkingForPlayer(playerId, true);
 					try {
 						// First, detect if this is a guess attempt
-						const guessedWord = await detectGuess(message);
+						const guessedWord = detectGuess(message);
 
 						// Check if round changed while we were processing
 						if (gameState.round !== requestRound) {
@@ -769,12 +642,6 @@ const server = Bun.serve({
 
 								player.score++;
 								const revealedWord = gameState.secretWord;
-
-								// Remove the word from database since it was guessed
-								if (revealedWord) {
-									deleteWordFromDb(revealedWord);
-									console.log(`Removed "${revealedWord}" from database (correctly guessed)`);
-								}
 
 								const winMsg: ChatMessage = {
 									id: generateMessageId(),
@@ -815,10 +682,8 @@ const server = Bun.serve({
 								broadcastThinkingForPlayer(playerId, false);
 							}
 						} else {
-							// It's a regular question - answer it
 							const answer = await answerQuestion(message);
 
-							// Check again if round changed while answering
 							if (gameState.round !== requestRound) {
 								gameState.thinkingForPlayers.delete(playerId);
 								return;
@@ -860,11 +725,29 @@ const server = Bun.serve({
 						const skippedMsg = JSON.stringify({
 							type: "round_skipped",
 							word: gameState.secretWord,
-							category: gameState.currentWordEntry?.category,
+							theme: gameState.currentTheme,
 						});
 						for (const ws of connections.values()) {
 							ws.send(skippedMsg);
 						}
+					}
+				} else if (data.type === "vote_theme") {
+					// Player votes for a theme
+					const themeId = data.themeId;
+					if (gameState.themeSelectionActive && themeId in GAME_THEMES) {
+						gameState.themeVotes.set(playerId, themeId);
+						broadcastThemeUpdate();
+					}
+				} else if (data.type === "confirm_theme") {
+					// Player confirms to start with selected theme
+					const themeId = data.themeId;
+					if (gameState.themeSelectionActive && themeId in GAME_THEMES) {
+						startGameWithTheme(themeId);
+					}
+				} else if (data.type === "change_theme") {
+					// Return to theme selection (only if no queries pending)
+					if (gameState.thinkingForPlayers.size === 0) {
+						returnToThemeSelection();
 					}
 				}
 			} catch (e) {

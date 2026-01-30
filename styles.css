@@ -477,9 +477,6 @@ body {
 
 /* New round button */
 .new-round-btn {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
   padding: 10px 20px;
   font-family: 'Patrick Hand', cursive;
   font-size: 0.95rem;
@@ -681,4 +678,220 @@ body {
 .popup-dialog .popup-btn:active {
   transform: translateY(1px);
   box-shadow: 2px 2px 0 var(--shadow-soft);
+}
+
+/* Theme Selection */
+.theme-selection-container {
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 40px;
+}
+
+.theme-selection {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.theme-selection-title {
+  font-family: 'Gaegu', cursive;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-brown);
+  margin-bottom: 0;
+}
+
+.theme-selection-subtitle {
+  font-size: 1.1rem;
+  color: var(--text-brown);
+  opacity: 0.7;
+  margin-bottom: 10px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 800px;
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 16px;
+  background: white;
+  border: 3px solid var(--border-brown);
+  border-radius: 16px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--shadow-soft);
+  transition: all 0.2s ease;
+  font-family: 'Patrick Hand', cursive;
+  position: relative;
+}
+
+.theme-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 5px 5px 0 var(--shadow-soft);
+}
+
+.theme-card.selected {
+  border-color: var(--oracle-purple);
+  background: linear-gradient(135deg, var(--oracle-light) 0%, #E8E4F0 100%);
+  box-shadow: 5px 5px 0 rgba(107, 91, 149, 0.3);
+}
+
+.theme-icon {
+  font-size: 2.5rem;
+}
+
+.theme-name {
+  font-family: 'Gaegu', cursive;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-brown);
+}
+
+.theme-description {
+  font-size: 0.85rem;
+  color: var(--text-brown);
+  opacity: 0.6;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.theme-votes {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--oracle-purple);
+  color: white;
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.confirm-theme-btn {
+  margin-top: 20px;
+  padding: 14px 40px;
+  font-family: 'Gaegu', cursive;
+  font-size: 1.4rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #FFE66D 0%, #FFCC00 100%);
+  color: var(--text-brown);
+  border: 3px solid var(--border-brown);
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 var(--shadow-soft);
+  transition: all 0.2s ease;
+}
+
+.confirm-theme-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 6px 6px 0 var(--shadow-soft);
+}
+
+.confirm-theme-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 2px 2px 0 var(--shadow-soft);
+}
+
+.confirm-theme-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.players-waiting {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background: var(--bg-cream);
+  border: 2px dashed var(--border-brown);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  color: var(--text-brown);
+}
+
+/* Current theme badge in round indicator */
+.round-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.current-theme-badge {
+  background: linear-gradient(135deg, var(--oracle-light) 0%, #D8D0E8 100%);
+  border: 2px solid var(--oracle-purple);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  color: var(--oracle-purple);
+}
+
+/* Game actions buttons */
+.game-actions {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.change-theme-btn {
+  padding: 10px 20px;
+  font-family: 'Patrick Hand', cursive;
+  font-size: 0.95rem;
+  background: var(--oracle-light);
+  color: var(--oracle-purple);
+  border: 2px solid var(--oracle-purple);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 rgba(107, 91, 149, 0.3);
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.change-theme-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: #E8E4F0;
+}
+
+.change-theme-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Responsive theme grid */
+@media (max-width: 600px) {
+  .theme-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .theme-card {
+    padding: 16px 12px;
+  }
+
+  .theme-icon {
+    font-size: 2rem;
+  }
+
+  .theme-name {
+    font-size: 1rem;
+  }
+
+  .theme-description {
+    font-size: 0.75rem;
+  }
+
+  .game-actions {
+    bottom: 10px;
+    right: 10px;
+    flex-direction: column;
+  }
 }
